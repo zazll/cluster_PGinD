@@ -1,0 +1,50 @@
+services:
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.11
+    container_name: etcd
+    network_mode: host
+    environment:
+      - ETCD_NAME=${NODE_NAME}
+      - ETCD_DATA_DIR=/etcd-data
+      - ETCD_INITIAL_ADVERTISE_PEER_URLS=http://${NODE_IP}:2380
+      - ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380
+      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
+      - ETCD_ADVERTISE_CLIENT_URLS=http://${NODE_IP}:2379
+      - ETCD_INITIAL_CLUSTER_TOKEN=${ETCD_CLUSTER_TOKEN}
+      - ETCD_INITIAL_CLUSTER=${ETCD_CLUSTER}
+      - ETCD_INITIAL_CLUSTER_STATE=new
+    volumes:
+      - ./etcd-data:/etcd-data
+    restart: always
+    command: /usr/local/bin/etcd
+
+  patroni:
+    image: ghcr.io/zalando/spilo-15:3.0-p1
+    container_name: patroni
+    network_mode: host
+    environment:
+      - SCOPE=${SCOPE}
+      - ETCD3_HOSTS=${ETCD_CLIENT_HOSTS}
+      - PATRONI_NAME=${NODE_NAME}
+      - SPILO_PROVIDER=${SPILO_PROVIDER}
+      - PATRONI_RESTAPI_CONNECT_ADDRESS=${NODE_IP}:8008
+      - PATRONI_RESTAPI_LISTEN=0.0.0.0:8008
+      - PATRONI_POSTGRESQL_CONNECT_ADDRESS=${NODE_IP}:5432
+      - PATRONI_POSTGRESQL_LISTEN=0.0.0.0:5432
+      - PATRONI_POSTGRESQL_DATA_DIR=${PGDATA_DIR}
+      - PATRONI_POSTGRESQL_PG_HBA=['host all all 0.0.0.0/0 md5', 'host replication all 0.0.0.0/0 md5']
+      - PATRONI_SUPERUSER_USERNAME=${POSTGRES_USER}
+      - PATRONI_SUPERUSER_PASSWORD=${POSTGRES_PASSWORD}
+      - PATRONI_REPLICATION_USERNAME=${REPLICATION_USER}
+      - PATRONI_REPLICATION_PASSWORD=${REPLICATION_PASSWORD}
+    volumes:
+      - ./pgdata:${PGDATA_DIR}
+    restart: always
+
+  haproxy:
+    image: haproxy:alpine
+    container_name: haproxy
+    network_mode: host
+    volumes:
+      - ./haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    restart: always
